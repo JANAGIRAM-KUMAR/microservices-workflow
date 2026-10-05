@@ -104,11 +104,15 @@ services:
     image: janu007/nodejs-microservices:latest
     restart: unless-stopped
     command: ["npm", "run", "start", "-w", "media-service"]
+    depends_on:
+      kafka:
+        condition: service_healthy
     env_file:
       - ../.env
     environment:
       <<: *env
       MEDIA_PORT: 5012
+      KAFKA_BROKER: kafka:29092
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5012/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
