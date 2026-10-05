@@ -1,6 +1,168 @@
+# Full local stack: Kafka + all five microservices.
+#
+# Env handling: every service loads ../.env (secrets, DATABASE_URL, ports) and the
+# `environment:` block below overrides the localhost-only values from it with
+# compose service names. Compose gives `environment:` precedence over `env_file:`,
+# so these overrides win.
+#
+#   docker compose -f docker/docker-compose.yml up -d --build
+#   docker compose -f docker/docker-compose.yml run --rm migrate
+#   docker compose -f docker/docker-compose.yml down -v
+
+x-build: &build
+  build:
+    context: ..
+    dockerfile: Dockerfile
+
+x-env: &env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+x-healthcheck: &healthcheck
+  # No curl/wget in the slim image, so use the runtime we already have.
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 40s
+
 services:
   kafka:
     image: apache/kafka:4.3.1
-    container_name: microservices-kafka
+    restart: unless-stopped
     ports:
       - "9092:9092"
+    environment:
+      CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      # INTERNAL is what other containers use (kafka:29092); EXTERNAL keeps the
+      # original host contract of localhost:9092 and advertises itself as such.
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
+
+  # One-shot: applies sql/*.sql in order, then exits. Idempotent DDL, so safe to re-run.
+  migrate:
+    <<: *build
+    image: nodejs-microservices:local
+    restart: "no"
+    command: >
+      sh -c "npm run db:migrate -- sql/001_users.sql &&
+             npm run db:migrate -- sql/002_tasks.sql &&
+             npm run db:migrate -- sql/003_attachments.sql &&
+             npm run db:migrate -- sql/004_workflows.sql"
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: production
+
+  api-gateway:
+    <<: *build
+    image: nodejs-microservices:local
+    restart: unless-stopped
+    command: ["npm", "run", "start", "-w", "api-gateway"]
+    env_file:
+      - ../.env
+    environment:
+      <<: *env
+      NODE_ENV: production
+      API_GATEWAY_PORT: 5009
+      AUTH_SERVICE_URL: http://auth-service:5010
+      TASK_SERVICE_URL: http://task-service:5011
+      MEDIA_SERVICE_URL: http://media-service:5012
+      WORKFLOW_SERVICE_URL: http://workflow-service:5013
+    ports:
+      - "5009:5009"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5009/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  auth-service:
+    <<: *build
+    image: nodejs-microservices:local
+    restart: unless-stopped
+    command: ["npm", "run", "start", "-w", "auth-service"]
+    env_file:
+      - ../.env
+    environment:
+      <<: *env
+      NODE_ENV: production
+      AUTH_PORT: 5010
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5010/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  task-service:
+    <<: *build
+    image: nodejs-microservices:local
+    restart: unless-stopped
+    command: ["npm", "run", "start", "-w", "task-service"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      <<: *env
+      NODE_ENV: production
+      TASK_PORT: 5011
+      KAFKA_BROKER: kafka:29092
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5011/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  media-service:
+    <<: *build
+    image: nodejs-microservices:local
+    restart: unless-stopped
+    command: ["npm", "run", "start", "-w", "media-service"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      <<: *env
+      NODE_ENV: production
+      MEDIA_PORT: 5012
+      KAFKA_BROKER: kafka:29092
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5012/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  workflow-service:
+    <<: *build
+    image: nodejs-microservices:local
+    restart: unless-stopped
+    command: ["npm", "run", "start", "-w", "workflow-service"]
+    # This is the only consumer. It never retries a failed Kafka connect, so it must
+    # not start until the broker is actually ready.
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      <<: *env
+      NODE_ENV: production
+      WORKFLOW_PORT: 5013
+      KAFKA_BROKER: kafka:29092
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5013/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+volumes:
+  kafka-data:

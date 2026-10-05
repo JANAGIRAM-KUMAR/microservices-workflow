@@ -1,0 +1,32 @@
+# Secrets — .env holds JWT_SECRET, GATEWAY_SECRET, AWS keys and a DB password.
+# Never let it reach the build context or an image layer.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies are reinstalled inside the image for the correct platform.
+node_modules
+**/node_modules
+
+# Build output / editor / OS noise
+dist
+**/dist
+coverage
+**/coverage
+*.log
+npm-debug.log*
+.npm
+*.tsbuildinfo
+
+.git
+.gitignore
+.github
+.gitlab-ci.yml
+.vscode
+.idea
+.DS_Store
+
+# The legacy single-purpose compose file is superseded by this one.
+docker

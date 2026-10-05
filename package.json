@@ -13,7 +13,12 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "kafka:up": "docker compose -f docker/docker-compose.yml up -d",
     "kafka:down": "docker compose -f docker/docker-compose.yml down",
-    "kafka:logs": "docker compose -f docker/docker-compose.yml logs -f kafka"
+    "kafka:logs": "docker compose -f docker/docker-compose.yml logs -f kafka",
+    "up": "docker compose -f docker/docker-compose.yml up -d --build",
+    "down": "docker compose -f docker/docker-compose.yml down",
+    "logs": "docker compose -f docker/docker-compose.yml logs -f",
+    "migrate": "docker compose -f docker/docker-compose.yml run --rm migrate",
+    "ps": "docker compose -f docker/docker-compose.yml ps"
   },
   "workspaces": [
     "apps/*",
