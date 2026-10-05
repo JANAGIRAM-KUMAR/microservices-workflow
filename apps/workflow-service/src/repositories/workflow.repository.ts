@@ -1,13 +1,13 @@
 import { getPool } from "shared";
 import { Workflow } from "../types/types";
 
-export async function findTaskOwner(taskId:string) : Promise<{createdBy : string | null}> {
-    const result = await getPool().query<{createdBy : string | null}>(`
+export async function findTaskOwner(taskId:string) : Promise<{created_by : string} | null> {
+    const result = await getPool().query<{created_by : string}>(`
         SELECT created_by
         FROM tasks
         WHERE id = $1
     `, [taskId]);
-    return result.rows[0];
+    return result.rows[0] || null;
 }
 
 export async function createWorkflow(input: {

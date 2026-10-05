@@ -47,7 +47,7 @@ export async function listWorkflows(taskId : string, userId : string, userRole :
     if(!task){
         throw new AppError(404, "Task not found");
     }
-    if(userRole !== 'admin' && task.createdBy !== userId){
+    if(userRole !== 'admin' && task.created_by !== userId){
         throw new AppError(403, "Forbidden, you don't have access to this task");
     }
     const rows = await workflowRepository.listWorkflows(taskId);
