@@ -7,7 +7,7 @@ import { getAllowedRules, isPublicRoute } from '../rbac';
 const IDENTITY_HEADERS = ['x-user-id', 'x-user-role','x-gateway-secret'] as const;
 
 function stripIdentityHeaders(req: Request) {
-    for(const header in IDENTITY_HEADERS){
+    for(const header of IDENTITY_HEADERS){
         delete req.headers[header];
     }
 }
@@ -54,11 +54,11 @@ export function gatewayAuth(req : Request, res : Response, next : NextFunction) 
 
         // RBAC check
         const allowedRoles = getAllowedRules(req.method, path);
+        if(allowedRoles.length === 0){
+            throw new AppError(404, 'Route not found');
+        }
         if(!allowedRoles.includes(payload.role)){
             throw new AppError(403, "Forbidden, you don't have access to this route");
-        }
-        if(!allowedRoles){
-            throw new AppError(404, "Route not found");
         }
 
         attachUserHeaders(req, payload.userId, payload.role);
