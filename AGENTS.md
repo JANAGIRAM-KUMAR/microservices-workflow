@@ -111,7 +111,7 @@ Each service has `dev` (watch) and `start` (run) scripts. Use `npm run dev -w <s
 - Repositories/DB and Kafka are mocked with `vi.mock` at the module level; no live Postgres or Kafka is required to run tests
 - `vitest.setup.ts` pins safe test env vars (JWT_SECRET, GATEWAY_SECRET, dummy DATABASE_URL, etc.) so tests never read the real `.env`
 - When making changes, verify the service still starts correctly and run `npm run typecheck && npm test`
-- `.github/workflows/ci.yml` runs typecheck + tests on push/PR
+- `.github/workflows/ci.yml` runs typecheck + tests on PRs; `.github/workflows/cd.yml` re-runs them on push to `main` and builds/pushes `janu007/nodejs-microservices:latest` (+ git SHA tag) to Docker Hub after login via `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` repo secrets
 - For Docker changes, test with `docker compose -f docker/docker-compose.yml build` and `up`
 - Health endpoints exist at `/:service/health` (proxied or direct)
 
