@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import type { JWTPayload } from './types';
-import de from 'zod/v4/locales/de.js';
 
 function extractjwtSecret() : string {
     const secret = process.env.JWT_SECRET as string;

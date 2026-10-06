@@ -1,5 +1,4 @@
 import type { Consumer, EachMessagePayload } from "kafkajs";
-import ka from "zod/v4/locales/ka.js";
 import { logger } from "../logger/logger";
 import { createKafkaClient } from "./client";
 
