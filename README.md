@@ -24,6 +24,7 @@ This application consists of 5 microservices communicating over HTTP and Kafka:
 - **Auth**: JWT access tokens
 - **Containerization**: Docker & Docker Compose
 - **Workspace**: npm workspaces (monorepo)
+- **Testing**: Vitest + Supertest
 
 ## Prerequisites
 
@@ -52,7 +53,7 @@ WORKFLOW_SERVICE_URL=http://localhost:5013
 
 DATABASE_URL=postgresql://...
 JWT_SECRET=...
-JWT_ACCESS_EXPIRES_IN=1d
+JWT_EXPIRES_IN=1d
 GATEWAY_SECRET=...
 
 AWS_ENDPOINT_URL_S3=...
@@ -113,6 +114,17 @@ Migrations can be run locally with:
 npm run db:migrate -- sql/001_users.sql
 ```
 
+## Testing
+
+The repo runs Vitest (unit, service-layer, and HTTP integration tests). No live Postgres/Kafka/S3 is required — dependencies are mocked.
+
+```bash
+npm run typecheck  # tsc across all workspaces
+npm test           # run the test suite once
+npm run test:watch # watch mode
+npm run test:coverage # run with V8 coverage report (coverage/)
+```
+
 ## Database Schema
 
 The application uses 4 tables defined in SQL migrations (run in order):
@@ -160,6 +172,11 @@ When a task is created, the Task Service publishes an event to Kafka (`task.crea
 - Secrets managed via environment variables
 - .env excluded from Docker build context
 
+## CI/CD
+
+- **CI** (`.github/workflows/ci.yml`) — runs typecheck + tests on every pull request.
+- **CD** (`.github/workflows/cd.yml`) — on every push to `main`: runs typecheck + tests, then builds and pushes `janu007/nodejs-microservices:latest` (plus a git-SHA tag) to Docker Hub. Requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repo secrets.
+
 ## Deployment
 
-To run on another machine see [README_DEPLOY.md](./README_DEPLOY.md) for instructions using the prebuilt Docker image from Docker Hub.
+To run the prebuilt Docker image on another machine, see [README_DEPLOY.md](./README_DEPLOY.md). Pull the new image and re-run migrations after each push to `main`.
