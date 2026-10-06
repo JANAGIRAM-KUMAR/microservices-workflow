@@ -100,8 +100,18 @@ Each service has `dev` (watch) and `start` (run) scripts. Use `npm run dev -w <s
 
 ## Testing & Quality
 
-- No test framework configured in root (check individual services if needed)
-- When making changes, verify the service still starts correctly
+- Test runner: **Vitest** (root config in `vitest.config.ts`, test env in `vitest.setup.ts`)
+- Tests live next to source as `*.test.ts` (vitest run collects them from `apps/*/src` and `packages/shared/src`)
+- Commands (from repo root):
+  - `npm test` — run once
+  - `npm run test:watch` — watch mode
+  - `npm run test:coverage` — with V8 coverage (output to `coverage/`)
+  - `npm run typecheck` — `tsc --noEmit` across all six workspaces
+- Each service's `app.ts` exports the Express `app` without listening; `index.ts` configures dotenv, Kafka, and `listen`. Write HTTP tests against `app.ts` via supertest; never import `index.ts` in tests (it binds ports and connects to Kafka)
+- Repositories/DB and Kafka are mocked with `vi.mock` at the module level; no live Postgres or Kafka is required to run tests
+- `vitest.setup.ts` pins safe test env vars (JWT_SECRET, GATEWAY_SECRET, dummy DATABASE_URL, etc.) so tests never read the real `.env`
+- When making changes, verify the service still starts correctly and run `npm run typecheck && npm test`
+- `.github/workflows/ci.yml` runs typecheck + tests on push/PR
 - For Docker changes, test with `docker compose -f docker/docker-compose.yml build` and `up`
 - Health endpoints exist at `/:service/health` (proxied or direct)
 
